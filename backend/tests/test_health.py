@@ -13,3 +13,8 @@ def test_health_check():
     assert response.status_code == 200
 
     assert response.json()["status"] == "healthy"
+
+def test_health_check_environment():
+    response = client.get("/health")
+
+    assert response.json()["environment"] == "development"

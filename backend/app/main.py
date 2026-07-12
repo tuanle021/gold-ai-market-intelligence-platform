@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 
+from app.core.config import settings
+
+
 app = FastAPI(
-    title="Gold AI Market Intelligence Platform",
-    description="AI-powered financial intelligence platform for gold market analysis",
-    version="0.1.0"
+    title=settings.app_name
 )
 
 
@@ -11,5 +12,5 @@ app = FastAPI(
 def health_check():
     return {
         "status": "healthy",
-        "service": "gold-ai-backend"
+        "environment": settings.environment
     }
