@@ -3,8 +3,12 @@ from datetime import timezone
 import yfinance as yf
 
 from app.providers.base import MarketDataProvider
-from app.schemas.market import GoldPriceResponse
 from app.models.market_instrument import MarketInstrument
+from app.schemas.market import (
+    GoldPriceResponse,
+    HistoricalMarketDataRequest,
+    HistoricalMarketDataResponse,
+)
 
 
 class YahooFinanceMarketDataProvider(MarketDataProvider):
@@ -32,3 +36,11 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
             currency="USD",
             timestamp=latest_timestamp.astimezone(timezone.utc),
         )
+    
+    def get_historical_data(
+    self,
+    request: HistoricalMarketDataRequest,
+    ) -> HistoricalMarketDataResponse:
+        raise NotImplementedError(
+            "Historical market data is not implemented for Yahoo Finance yet."
+    )

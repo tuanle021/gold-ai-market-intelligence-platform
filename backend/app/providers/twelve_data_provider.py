@@ -4,8 +4,12 @@ import httpx
 
 from app.core.config import settings
 from app.providers.base import MarketDataProvider
-from app.schemas.market import GoldPriceResponse
 from app.models.market_instrument import MarketInstrument
+from app.schemas.market import (
+    GoldPriceResponse,
+    HistoricalMarketDataRequest,
+    HistoricalMarketDataResponse,
+)
 
 class TwelveDataMarketDataProvider(MarketDataProvider):
     """Retrieves XAU/USD spot gold data from Twelve Data."""
@@ -71,3 +75,11 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
             currency="USD",
             timestamp=datetime.now(timezone.utc),
         )
+    
+    def get_historical_data(
+    self,
+    request: HistoricalMarketDataRequest,
+    ) -> HistoricalMarketDataResponse:
+        raise NotImplementedError(
+            "Historical market data is not implemented for Twelve Data yet."
+    )

@@ -10,6 +10,9 @@ from app.schemas.market import (
     HistoricalMarketDataResponse,
     MarketCandle,
 )
+from app.providers.mock_market_provider import (
+    MockMarketDataProvider,
+)
 
 
 def create_valid_candle() -> MarketCandle:
@@ -160,3 +163,38 @@ def test_historical_response_accepts_candle_collection():
 
     assert len(response.candles) == 1
     assert response.candles[0].close == 4097.20
+
+def test_mock_provider_returns_historical_candles():
+    provider = MockMarketDataProvider()
+
+    request = HistoricalMarketDataRequest(
+        symbol=MarketInstrument.GOLD_FUTURES,
+        interval=MarketInterval.FIVE_MINUTES,
+        start_time=datetime(
+            2026,
+            7,
+            14,
+            10,
+            0,
+            tzinfo=timezone.utc,
+        ),
+        end_time=datetime(
+            2026,
+            7,
+            14,
+            11,
+            0,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    result = provider.get_historical_data(request)
+
+    assert result.symbol == (
+        MarketInstrument.GOLD_FUTURES
+    )
+    assert result.interval == (
+        MarketInterval.FIVE_MINUTES
+    )
+    assert len(result.candles) == 2
+    assert result.candles[0].timestamp.tzinfo is not None
