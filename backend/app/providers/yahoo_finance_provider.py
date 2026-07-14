@@ -4,12 +4,13 @@ import yfinance as yf
 
 from app.providers.base import MarketDataProvider
 from app.schemas.market import GoldPriceResponse
+from app.models.market_instrument import MarketInstrument
 
 
 class YahooFinanceMarketDataProvider(MarketDataProvider):
     """Retrieves gold futures market data from Yahoo Finance."""
 
-    GOLD_TICKER = "GC=F"
+    GOLD_TICKER = MarketInstrument.GOLD_FUTURES
 
     def get_gold_price(self) -> GoldPriceResponse:
         ticker = yf.Ticker(self.GOLD_TICKER)

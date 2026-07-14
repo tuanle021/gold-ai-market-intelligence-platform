@@ -5,12 +5,12 @@ import httpx
 from app.core.config import settings
 from app.providers.base import MarketDataProvider
 from app.schemas.market import GoldPriceResponse
-
+from app.models.market_instrument import MarketInstrument
 
 class TwelveDataMarketDataProvider(MarketDataProvider):
     """Retrieves XAU/USD spot gold data from Twelve Data."""
 
-    GOLD_SPOT_SYMBOL = "XAU/USD"
+    GOLD_SPOT_SYMBOL = MarketInstrument.GOLD_SPOT
 
     def __init__(
         self,

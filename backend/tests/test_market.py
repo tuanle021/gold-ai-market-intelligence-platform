@@ -9,6 +9,7 @@ from app.api.dependencies import (
 from app.main import app
 from app.schemas.market import GoldPriceResponse
 from app.services.market_data import MarketDataService
+from app.models.market_instrument import MarketInstrument
 
 
 client = TestClient(app)
@@ -17,7 +18,7 @@ client = TestClient(app)
 class MockSpotMarketDataProvider:
     def get_gold_price(self) -> GoldPriceResponse:
         return GoldPriceResponse(
-            symbol="XAU/USD",
+            symbol=MarketInstrument.GOLD_SPOT,
             price=4056.80,
             currency="USD",
             timestamp=datetime.now(timezone.utc),
@@ -27,7 +28,7 @@ class MockSpotMarketDataProvider:
 class MockFuturesMarketDataProvider:
     def get_gold_price(self) -> GoldPriceResponse:
         return GoldPriceResponse(
-            symbol="GC=F",
+            symbol=MarketInstrument.GOLD_FUTURES,
             price=4097.20,
             currency="USD",
             timestamp=datetime.now(timezone.utc),
