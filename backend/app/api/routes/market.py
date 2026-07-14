@@ -1,17 +1,11 @@
 from fastapi import APIRouter
 
-from app.schemas.market import GoldPriceResponse
-from app.services.market_data import market_data_service
+from app.services.market_data import MarketDataService
 
-router = APIRouter(
-    prefix="/market",
-    tags=["Market"]
-)
+router = APIRouter()
 
+market_service = MarketDataService()
 
-@router.get(
-    "/gold",
-    response_model=GoldPriceResponse
-)
+@router.get("/gold")
 def get_gold_price():
-    return market_data_service.get_gold_price()
+    return market_service.get_gold_price()

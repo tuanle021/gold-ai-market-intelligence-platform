@@ -1,17 +1,11 @@
-from datetime import datetime, timezone
-
-from app.schemas.market import GoldPriceResponse
+from app.services.market_client import MockMarketClient
 
 
 class MarketDataService:
 
-    def get_gold_price(self) -> GoldPriceResponse:
-        return GoldPriceResponse(
-            symbol="XAUUSD",
-            price=3350.42,
-            currency="USD",
-            timestamp=datetime.now(timezone.utc)
-        )
+    def __init__(self):
+        self.client = MockMarketClient()
 
 
-market_data_service = MarketDataService()
+    def get_gold_price(self):
+        return self.client.get_gold_price()

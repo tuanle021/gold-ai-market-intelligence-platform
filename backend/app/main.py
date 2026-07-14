@@ -9,7 +9,11 @@ app = FastAPI(
     debug=settings.debug
 )
 
-app.include_router(market_router)
+app.include_router(
+    market_router,
+    prefix="/market",
+    tags=["market"]
+    )
 
 @app.get("/health")
 def health_check():
