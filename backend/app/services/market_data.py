@@ -1,11 +1,10 @@
-from app.services.market_client import MockMarketClient
+from app.providers.base import MarketDataProvider
+from app.schemas.market import GoldPriceResponse
 
 
 class MarketDataService:
+    def __init__(self, provider: MarketDataProvider):
+        self.provider = provider
 
-    def __init__(self):
-        self.client = MockMarketClient()
-
-
-    def get_gold_price(self):
-        return self.client.get_gold_price()
+    def get_gold_price(self) -> GoldPriceResponse:
+        return self.provider.get_gold_price()
