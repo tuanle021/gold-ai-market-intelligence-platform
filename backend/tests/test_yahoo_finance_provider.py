@@ -4,8 +4,15 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
+from app.models.market_instrument import (
+    MarketInstrument,
+)
+from app.models.market_interval import MarketInterval
 from app.providers.yahoo_finance_provider import (
     YahooFinanceMarketDataProvider,
+)
+from app.schemas.market import (
+    HistoricalMarketDataRequest,
 )
 
 
@@ -58,3 +65,165 @@ def test_yahoo_provider_raises_error_when_no_data_returned():
             match="Yahoo Finance returned no gold price data",
         ):
             provider.get_gold_price()
+
+def create_historical_request(
+    *,
+    symbol: MarketInstrument = (
+        MarketInstrument.GOLD_FUTURES
+    ),
+    interval: MarketInterval = (
+        MarketInterval.FIVE_MINUTES
+    ),
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+) -> HistoricalMarketDataRequest:
+    return HistoricalMarketDataRequest(
+        symbol=symbol,
+        interval=interval,
+        start_time=start_time
+        or datetime(
+            2026,
+            7,
+            14,
+            10,
+            0,
+            tzinfo=timezone.utc,
+        ),
+        end_time=end_time
+        or datetime(
+            2026,
+            7,
+            14,
+            11,
+            0,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+def test_yahoo_provider_returns_historical_candles():
+    index = pd.DatetimeIndex(
+        [
+            pd.Timestamp(
+                "2026-07-14T10:00:00-04:00"
+            ),
+            pd.Timestamp(
+                "2026-07-14T10:05:00-04:00"
+            ),
+        ]
+    )
+
+    mock_history = pd.DataFrame(
+        {
+            "Open": [4095.10, 4097.20],
+            "High": [4098.40, 4100.10],
+            "Low": [4094.70, 4096.80],
+            "Close": [4097.20, 4099.60],
+            "Volume": [1832, 1950],
+        },
+        index=index,
+    )
+
+    with patch(
+        "app.providers.yahoo_finance_provider.yf.Ticker"
+    ) as mock_ticker_class:
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = mock_history
+        mock_ticker_class.return_value = mock_ticker
+
+        provider = YahooFinanceMarketDataProvider()
+        request = create_historical_request()
+
+        result = provider.get_historical_data(
+            request
+        )
+
+    assert result.symbol == (
+        MarketInstrument.GOLD_FUTURES
+    )
+    assert result.interval == (
+        MarketInterval.FIVE_MINUTES
+    )
+    assert len(result.candles) == 2
+
+    first_candle = result.candles[0]
+
+    assert first_candle.open == 4095.10
+    assert first_candle.close == 4097.20
+    assert first_candle.volume == 1832
+    assert first_candle.timestamp.tzinfo is not None
+
+    mock_ticker.history.assert_called_once_with(
+        start=request.start_time,
+        end=request.end_time,
+        interval="5m",
+        auto_adjust=False,
+    )
+
+def test_yahoo_provider_rejects_spot_gold():
+    provider = YahooFinanceMarketDataProvider()
+
+    request = create_historical_request(
+        symbol=MarketInstrument.GOLD_SPOT
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="only supports gold futures",
+    ):
+        provider.get_historical_data(request)
+
+def test_yahoo_provider_rejects_unsupported_interval():
+    provider = YahooFinanceMarketDataProvider()
+
+    request = create_historical_request(
+        interval=MarketInterval.FOUR_HOURS
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="does not support interval",
+    ):
+        provider.get_historical_data(request)
+
+def test_yahoo_provider_rejects_empty_history():
+    with patch(
+        "app.providers.yahoo_finance_provider.yf.Ticker"
+    ) as mock_ticker_class:
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = (
+            pd.DataFrame()
+        )
+        mock_ticker_class.return_value = mock_ticker
+
+        provider = YahooFinanceMarketDataProvider()
+        request = create_historical_request()
+
+        with pytest.raises(
+            ValueError,
+            match="returned no historical gold data",
+        ):
+            provider.get_historical_data(request)
+
+def test_yahoo_provider_rejects_long_intraday_range():
+    provider = YahooFinanceMarketDataProvider()
+
+    request = create_historical_request(
+        start_time=datetime(
+            2026,
+            4,
+            1,
+            tzinfo=timezone.utc,
+        ),
+        end_time=datetime(
+            2026,
+            7,
+            14,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="cannot exceed 60 days",
+    ):
+        provider.get_historical_data(request)

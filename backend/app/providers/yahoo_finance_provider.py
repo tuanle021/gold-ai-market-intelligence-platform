@@ -1,5 +1,6 @@
 from datetime import timezone
 
+import pandas as pd
 import yfinance as yf
 
 from app.providers.base import MarketDataProvider
@@ -8,13 +9,23 @@ from app.schemas.market import (
     GoldPriceResponse,
     HistoricalMarketDataRequest,
     HistoricalMarketDataResponse,
+    MarketCandle,
 )
-
+from app.models.market_interval import MarketInterval
 
 class YahooFinanceMarketDataProvider(MarketDataProvider):
     """Retrieves gold futures market data from Yahoo Finance."""
 
     GOLD_TICKER = MarketInstrument.GOLD_FUTURES
+
+    INTERVAL_MAPPING: dict[MarketInterval, str] = {
+        MarketInterval.ONE_MINUTE: "1m",
+        MarketInterval.FIVE_MINUTES: "5m",
+        MarketInterval.FIFTEEN_MINUTES: "15m",
+        MarketInterval.THIRTY_MINUTES: "30m",
+        MarketInterval.ONE_HOUR: "1h",
+        MarketInterval.ONE_DAY: "1d",
+    }
 
     def get_gold_price(self) -> GoldPriceResponse:
         ticker = yf.Ticker(self.GOLD_TICKER)
@@ -37,10 +48,120 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
             timestamp=latest_timestamp.astimezone(timezone.utc),
         )
     
+    @classmethod
+    def _get_provider_interval(
+        cls,
+        interval: MarketInterval,
+    ) -> str:
+        try:
+            return cls.INTERVAL_MAPPING[interval]
+        except KeyError as error:
+            raise ValueError(
+                f"Yahoo Finance does not support interval: {interval}"
+            ) from error
+    
+    @staticmethod
+    def _validate_historical_request(
+        request: HistoricalMarketDataRequest,
+    ) -> None:
+        if request.symbol != MarketInstrument.GOLD_FUTURES:
+            raise ValueError(
+                "Yahoo Finance provider only supports gold futures"
+            )
+
+        intraday_intervals = {
+            MarketInterval.ONE_MINUTE,
+            MarketInterval.FIVE_MINUTES,
+            MarketInterval.FIFTEEN_MINUTES,
+            MarketInterval.THIRTY_MINUTES,
+            MarketInterval.ONE_HOUR,
+        }
+
+        requested_range = (
+            request.end_time - request.start_time
+        )
+
+        if (
+            request.interval in intraday_intervals
+            and requested_range.days > 60
+        ):
+            raise ValueError(
+                "Yahoo Finance intraday requests cannot exceed 60 days"
+            )
+    
     def get_historical_data(
     self,
     request: HistoricalMarketDataRequest,
     ) -> HistoricalMarketDataResponse:
-        raise NotImplementedError(
-            "Historical market data is not implemented for Yahoo Finance yet."
-    )
+        self._validate_historical_request(request)
+
+        provider_interval = self._get_provider_interval(
+            request.interval
+        )
+
+        ticker = yf.Ticker(
+            MarketInstrument.GOLD_FUTURES
+        )
+
+        history = ticker.history(
+            start=request.start_time,
+            end=request.end_time,
+            interval=provider_interval,
+            auto_adjust=False,
+        )
+
+        if history.empty:
+            raise ValueError(
+                "Yahoo Finance returned no historical gold data"
+            )
+
+        candles: list[MarketCandle] = []
+
+        for timestamp, row in history.iterrows():
+            required_values = [
+                row["Open"],
+                row["High"],
+                row["Low"],
+                row["Close"],
+            ]
+
+            if any(pd.isna(value) for value in required_values):
+                continue
+
+            volume = row.get("Volume")
+
+            normalised_volume = (
+                None
+                if volume is None or pd.isna(volume)
+                else float(volume)
+            )
+
+            candle_timestamp = (
+                timestamp.to_pydatetime()
+                .astimezone(timezone.utc)
+            )
+
+            candles.append(
+                MarketCandle(
+                    symbol=MarketInstrument.GOLD_FUTURES,
+                    interval=request.interval,
+                    timestamp=candle_timestamp,
+                    open=float(row["Open"]),
+                    high=float(row["High"]),
+                    low=float(row["Low"]),
+                    close=float(row["Close"]),
+                    volume=normalised_volume,
+                )
+            )
+
+        if not candles:
+            raise ValueError(
+                "Yahoo Finance returned no valid historical candles"
+            )
+
+        return HistoricalMarketDataResponse(
+            symbol=MarketInstrument.GOLD_FUTURES,
+            interval=request.interval,
+            currency="USD",
+            candles=candles,
+        )
