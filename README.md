@@ -1,4 +1,4 @@
-# Gold AI Market Intelligence Platform
+# AI Financial Intelligence Platform
 
 An AI-powered financial analysis platform combining:
 
