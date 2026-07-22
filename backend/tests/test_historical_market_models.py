@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from app.models.market_instrument import MarketInstrument
 from app.models.market_interval import MarketInterval
 from app.schemas.market import (
     HistoricalMarketDataRequest,
@@ -13,11 +12,12 @@ from app.schemas.market import (
 from app.providers.mock_market_provider import (
     MockMarketDataProvider,
 )
+from app.instruments.definitions import GOLD_FUTURES, GOLD_SPOT
 
 
 def create_valid_candle() -> MarketCandle:
     return MarketCandle(
-        symbol=MarketInstrument.GOLD_FUTURES,
+        symbol=GOLD_FUTURES.provider_symbol,
         interval=MarketInterval.FIVE_MINUTES,
         timestamp=datetime.now(timezone.utc),
         open=4095.10,
@@ -36,14 +36,13 @@ def test_market_interval_values():
 def test_market_candle_accepts_valid_ohlcv_data():
     candle = create_valid_candle()
 
-    assert candle.symbol == MarketInstrument.GOLD_FUTURES
     assert candle.interval == MarketInterval.FIVE_MINUTES
     assert candle.close == 4097.20
 
 
 def test_market_candle_allows_missing_volume():
     candle = MarketCandle(
-        symbol=MarketInstrument.GOLD_SPOT,
+        symbol=GOLD_SPOT.provider_symbol,
         interval=MarketInterval.FIVE_MINUTES,
         timestamp=datetime.now(timezone.utc),
         open=4055.10,
@@ -62,7 +61,7 @@ def test_market_candle_rejects_high_below_low():
         match="Candle high must be greater than or equal",
     ):
         MarketCandle(
-            symbol=MarketInstrument.GOLD_FUTURES,
+            symbol=GOLD_FUTURES.provider_symbol,
             interval=MarketInterval.FIVE_MINUTES,
             timestamp=datetime.now(timezone.utc),
             open=4095.10,
@@ -79,7 +78,7 @@ def test_market_candle_rejects_close_outside_range():
         match="Candle close must be between",
     ):
         MarketCandle(
-            symbol=MarketInstrument.GOLD_FUTURES,
+            symbol=GOLD_FUTURES.provider_symbol,
             interval=MarketInterval.FIVE_MINUTES,
             timestamp=datetime.now(timezone.utc),
             open=4095.10,
@@ -96,7 +95,7 @@ def test_market_candle_rejects_naive_timestamp():
         match="Candle timestamp must be timezone-aware",
     ):
         MarketCandle(
-            symbol=MarketInstrument.GOLD_FUTURES,
+            symbol=GOLD_FUTURES.provider_symbol,
             interval=MarketInterval.FIVE_MINUTES,
             timestamp=datetime.now(),
             open=4095.10,
@@ -109,7 +108,6 @@ def test_market_candle_rejects_naive_timestamp():
 
 def test_historical_request_accepts_valid_range():
     request = HistoricalMarketDataRequest(
-        symbol=MarketInstrument.GOLD_FUTURES,
         interval=MarketInterval.ONE_DAY,
         start_time=datetime(
             2026,
@@ -134,7 +132,6 @@ def test_historical_request_rejects_invalid_range():
         match="Start time must be before end time",
     ):
         HistoricalMarketDataRequest(
-            symbol=MarketInstrument.GOLD_FUTURES,
             interval=MarketInterval.ONE_DAY,
             start_time=datetime(
                 2026,
@@ -155,7 +152,7 @@ def test_historical_response_accepts_candle_collection():
     candle = create_valid_candle()
 
     response = HistoricalMarketDataResponse(
-        symbol=MarketInstrument.GOLD_FUTURES,
+        symbol=GOLD_FUTURES.provider_symbol,
         interval=MarketInterval.FIVE_MINUTES,
         currency="USD",
         candles=[candle],
@@ -168,7 +165,6 @@ def test_mock_provider_returns_historical_candles():
     provider = MockMarketDataProvider()
 
     request = HistoricalMarketDataRequest(
-        symbol=MarketInstrument.GOLD_FUTURES,
         interval=MarketInterval.FIVE_MINUTES,
         start_time=datetime(
             2026,
@@ -188,11 +184,11 @@ def test_mock_provider_returns_historical_candles():
         ),
     )
 
-    result = provider.get_historical_data(request)
-
-    assert result.symbol == (
-        MarketInstrument.GOLD_FUTURES
+    result = provider.get_historical_data(
+        GOLD_FUTURES,
+        request,
     )
+
     assert result.interval == (
         MarketInterval.FIVE_MINUTES
     )

@@ -1,42 +1,65 @@
 from datetime import datetime
 
-from fastapi import HTTPException, Query, status
+from fastapi import HTTPException, Query, status, Path
 from pydantic import ValidationError
-from app.core.config import settings
-from app.providers.factory import create_market_data_provider
-from app.providers.twelve_data_provider import TwelveDataMarketDataProvider
 from app.services.market_data import MarketDataService
-from app.providers.yahoo_finance_provider import (
-    YahooFinanceMarketDataProvider,
-)
-from app.models.market_instrument import MarketInstrument
 from app.models.market_interval import MarketInterval
 from app.schemas.market import HistoricalMarketDataRequest
+from app.providers.resolver import resolve_market_data_provider
+from app.services.instrument_service import instrument_service
 
+def create_market_data_service(
+    instrument_code: str,
+) -> MarketDataService:
+    definition = instrument_service.resolve_definition(
+        instrument_code
+    )
 
-def get_gold_futures_service() -> MarketDataService:
-    provider = create_market_data_provider(
-        settings.market_provider
+    provider = resolve_market_data_provider(
+        definition
     )
 
     return MarketDataService(
-        provider=provider
+        provider=provider,
+        instrument=definition,
+    )
+
+def get_market_data_service(
+    instrument_code: str = Path(
+        ...,
+        description="Platform instrument code",
+        examples=["XAUUSD"],
+    ),
+) -> MarketDataService:
+    try:
+        return create_market_data_service(
+            instrument_code
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+
+def get_gold_futures_service() -> MarketDataService:
+    return create_market_data_service(
+        "GOLD_FUTURES"
     )
 
 def get_gold_futures_historical_service() -> MarketDataService:
-    return MarketDataService(
-        provider=YahooFinanceMarketDataProvider()
+    return create_market_data_service(
+        "GOLD_FUTURES"
     )
 
 
 def get_gold_spot_service() -> MarketDataService:
-    provider = TwelveDataMarketDataProvider(
-        api_key=settings.twelve_data_api_key,
-        base_url=settings.twelve_data_base_url,
+    return create_market_data_service(
+        "XAUUSD"
     )
 
-    return MarketDataService(
-        provider=provider
+def get_gold_spot_historical_service() -> MarketDataService:
+    return create_market_data_service(
+        "XAUUSD"
     )
 
 def get_gold_futures_historical_request(
@@ -55,7 +78,6 @@ def get_gold_futures_historical_request(
 ) -> HistoricalMarketDataRequest:
     try:
         return HistoricalMarketDataRequest(
-            symbol=MarketInstrument.GOLD_FUTURES,
             interval=interval,
             start_time=start_time,
             end_time=end_time,
@@ -69,14 +91,6 @@ def get_gold_futures_historical_request(
                 include_context=False,
             ),
         ) from error
-    
-def get_gold_spot_historical_service() -> MarketDataService:
-    return MarketDataService(
-        provider=TwelveDataMarketDataProvider(
-            api_key=settings.twelve_data_api_key,
-            base_url=settings.twelve_data_base_url,
-        )
-    )
 
 def get_gold_spot_historical_request(
     interval: MarketInterval = Query(
@@ -94,7 +108,6 @@ def get_gold_spot_historical_request(
 ) -> HistoricalMarketDataRequest:
     try:
         return HistoricalMarketDataRequest(
-            symbol=MarketInstrument.GOLD_SPOT,
             interval=interval,
             start_time=start_time,
             end_time=end_time,

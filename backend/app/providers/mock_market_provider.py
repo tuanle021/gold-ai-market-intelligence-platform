@@ -1,40 +1,40 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
+from app.models.instrument_definition import InstrumentDefinition
 from app.providers.base import MarketDataProvider
-from app.models.market_instrument import MarketInstrument
-from app.models.market_interval import MarketInterval
 from app.schemas.market import (
-    GoldPriceResponse,
     HistoricalMarketDataRequest,
     HistoricalMarketDataResponse,
     MarketCandle,
+    MarketPriceResponse,
 )
 
 
 class MockMarketDataProvider(MarketDataProvider):
-    """Development provider returning predictable gold market data."""
-
-    def get_gold_price(self) -> GoldPriceResponse:
-        return GoldPriceResponse(
-            symbol=MarketInstrument.GOLD_FUTURES,
+    def get_latest_price(
+        self,
+        instrument: InstrumentDefinition,
+    ) -> MarketPriceResponse:
+        return MarketPriceResponse(
+            symbol=instrument.provider_symbol,
             price=3350.50,
-            currency="USD",
+            currency=instrument.instrument.quote_asset or "USD",
             timestamp=datetime.now(timezone.utc),
         )
 
     def get_historical_data(
         self,
+        instrument: InstrumentDefinition,
         request: HistoricalMarketDataRequest,
     ) -> HistoricalMarketDataResponse:
         first_timestamp = request.start_time
-
         second_timestamp = first_timestamp + timedelta(
             minutes=5
         )
 
         candles = [
             MarketCandle(
-                symbol=request.symbol,
+                symbol=instrument.provider_symbol,
                 interval=request.interval,
                 timestamp=first_timestamp,
                 open=4095.10,
@@ -44,7 +44,7 @@ class MockMarketDataProvider(MarketDataProvider):
                 volume=1832,
             ),
             MarketCandle(
-                symbol=request.symbol,
+                symbol=instrument.provider_symbol,
                 interval=request.interval,
                 timestamp=second_timestamp,
                 open=4097.20,
@@ -56,8 +56,8 @@ class MockMarketDataProvider(MarketDataProvider):
         ]
 
         return HistoricalMarketDataResponse(
-            symbol=request.symbol,
+            symbol=instrument.provider_symbol,
             interval=request.interval,
-            currency="USD",
+            currency=instrument.instrument.quote_asset or "USD",
             candles=candles,
         )

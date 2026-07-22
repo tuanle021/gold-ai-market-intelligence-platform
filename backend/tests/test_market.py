@@ -10,39 +10,46 @@ from app.api.dependencies import (
 )
 from app.main import app
 from app.services.market_data import MarketDataService
-from app.models.market_instrument import MarketInstrument
-from app.models.market_interval import MarketInterval
 from app.schemas.market import (
     HistoricalMarketDataRequest,
     HistoricalMarketDataResponse,
-    MarketCandle,
-    GoldPriceResponse
+    MarketCandle
 )
+from app.instruments.definitions import (
+    GOLD_FUTURES,
+    GOLD_SPOT,
+)
+from app.models.instrument_definition import InstrumentDefinition
+from app.schemas.market import MarketPriceResponse
 
 
 client = TestClient(app)
 
 
 class MockSpotMarketDataProvider:
-    def get_gold_price(self) -> GoldPriceResponse:
-        return GoldPriceResponse(
-            symbol=MarketInstrument.GOLD_SPOT,
+    def get_latest_price(
+        self,
+        instrument: InstrumentDefinition,
+    ) -> MarketPriceResponse:
+        return MarketPriceResponse(
+            symbol=instrument.provider_symbol,
             price=4056.80,
-            currency="USD",
+            currency=instrument.instrument.quote_asset or "USD",
             timestamp=datetime.now(timezone.utc),
         )
 
     def get_historical_data(
         self,
+        instrument: InstrumentDefinition,
         request: HistoricalMarketDataRequest,
     ) -> HistoricalMarketDataResponse:
         return HistoricalMarketDataResponse(
-            symbol=MarketInstrument.GOLD_SPOT,
+            symbol=instrument.provider_symbol,
             interval=request.interval,
-            currency="USD",
+            currency=instrument.instrument.quote_asset or "USD",
             candles=[
                 MarketCandle(
-                    symbol=MarketInstrument.GOLD_SPOT,
+                    symbol=instrument.provider_symbol,
                     interval=request.interval,
                     timestamp=datetime(
                         2026,
@@ -63,24 +70,29 @@ class MockSpotMarketDataProvider:
 
 
 class MockFuturesMarketDataProvider:
-    def get_gold_price(self) -> GoldPriceResponse:
-        return GoldPriceResponse(
-            symbol=MarketInstrument.GOLD_FUTURES,
+    def get_latest_price(
+        self,
+        instrument: InstrumentDefinition,
+    ) -> MarketPriceResponse:
+        return MarketPriceResponse(
+            symbol=instrument.provider_symbol,
             price=4097.20,
-            currency="USD",
+            currency=instrument.instrument.quote_asset or "USD",
             timestamp=datetime.now(timezone.utc),
         )
+
     def get_historical_data(
         self,
+        instrument: InstrumentDefinition,
         request: HistoricalMarketDataRequest,
     ) -> HistoricalMarketDataResponse:
         return HistoricalMarketDataResponse(
-            symbol=MarketInstrument.GOLD_FUTURES,
+            symbol=instrument.provider_symbol,
             interval=request.interval,
-            currency="USD",
+            currency=instrument.instrument.quote_asset or "USD",
             candles=[
                 MarketCandle(
-                    symbol=MarketInstrument.GOLD_FUTURES,
+                    symbol=instrument.provider_symbol,
                     interval=request.interval,
                     timestamp=datetime(
                         2026,
@@ -102,23 +114,27 @@ class MockFuturesMarketDataProvider:
 
 def override_gold_spot_service() -> MarketDataService:
     return MarketDataService(
-        provider=MockSpotMarketDataProvider()
+        provider=MockSpotMarketDataProvider(),
+        instrument=GOLD_SPOT,
     )
 
 
 def override_gold_futures_service() -> MarketDataService:
     return MarketDataService(
-        provider=MockFuturesMarketDataProvider()
+        provider=MockFuturesMarketDataProvider(),
+        instrument=GOLD_FUTURES,
     )
 
 def override_gold_spot_historical_service() -> MarketDataService:
     return MarketDataService(
-        provider=MockSpotMarketDataProvider()
+        provider=MockSpotMarketDataProvider(),
+        instrument=GOLD_SPOT,
     )
 
 def override_gold_futures_historical_service() -> MarketDataService:
     return MarketDataService(
-        provider=MockFuturesMarketDataProvider()
+        provider=MockFuturesMarketDataProvider(),
+        instrument=GOLD_FUTURES,
     )
 
 

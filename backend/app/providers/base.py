@@ -1,24 +1,29 @@
 from abc import ABC, abstractmethod
 
+from app.models.instrument_definition import InstrumentDefinition
 from app.schemas.market import (
-    GoldPriceResponse,
     HistoricalMarketDataRequest,
     HistoricalMarketDataResponse,
+    MarketPriceResponse,
 )
 
 
 class MarketDataProvider(ABC):
-    """Contract implemented by all market-data providers."""
+    """Contract implemented by market-data providers."""
 
     @abstractmethod
-    def get_gold_price(self) -> GoldPriceResponse:
-        """Retrieve the latest available gold market price."""
+    def get_latest_price(
+        self,
+        instrument: InstrumentDefinition,
+    ) -> MarketPriceResponse:
+        """Retrieve the latest price for an instrument."""
         raise NotImplementedError
 
     @abstractmethod
     def get_historical_data(
         self,
+        instrument: InstrumentDefinition,
         request: HistoricalMarketDataRequest,
     ) -> HistoricalMarketDataResponse:
-        """Retrieve historical market candles."""
+        """Retrieve historical candles for an instrument."""
         raise NotImplementedError

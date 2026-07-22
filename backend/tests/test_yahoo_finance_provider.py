@@ -4,9 +4,6 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from app.models.market_instrument import (
-    MarketInstrument,
-)
 from app.models.market_interval import MarketInterval
 from app.providers.yahoo_finance_provider import (
     YahooFinanceMarketDataProvider,
@@ -14,6 +11,7 @@ from app.providers.yahoo_finance_provider import (
 from app.schemas.market import (
     HistoricalMarketDataRequest,
 )
+from app.instruments.definitions import GOLD_FUTURES
 
 
 def test_yahoo_provider_returns_normalised_gold_price():
@@ -68,9 +66,6 @@ def test_yahoo_provider_raises_error_when_no_data_returned():
 
 def create_historical_request(
     *,
-    symbol: MarketInstrument = (
-        MarketInstrument.GOLD_FUTURES
-    ),
     interval: MarketInterval = (
         MarketInterval.FIVE_MINUTES
     ),
@@ -78,7 +73,6 @@ def create_historical_request(
     end_time: datetime | None = None,
 ) -> HistoricalMarketDataRequest:
     return HistoricalMarketDataRequest(
-        symbol=symbol,
         interval=interval,
         start_time=start_time
         or datetime(
@@ -134,12 +128,10 @@ def test_yahoo_provider_returns_historical_candles():
         request = create_historical_request()
 
         result = provider.get_historical_data(
-            request
+            GOLD_FUTURES,
+            request,
         )
 
-    assert result.symbol == (
-        MarketInstrument.GOLD_FUTURES
-    )
     assert result.interval == (
         MarketInterval.FIVE_MINUTES
     )
@@ -159,19 +151,6 @@ def test_yahoo_provider_returns_historical_candles():
         auto_adjust=False,
     )
 
-def test_yahoo_provider_rejects_spot_gold():
-    provider = YahooFinanceMarketDataProvider()
-
-    request = create_historical_request(
-        symbol=MarketInstrument.GOLD_SPOT
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="only supports gold futures",
-    ):
-        provider.get_historical_data(request)
-
 def test_yahoo_provider_rejects_unsupported_interval():
     provider = YahooFinanceMarketDataProvider()
 
@@ -183,7 +162,10 @@ def test_yahoo_provider_rejects_unsupported_interval():
         ValueError,
         match="does not support interval",
     ):
-        provider.get_historical_data(request)
+        provider.get_historical_data(
+            GOLD_FUTURES,
+            request,
+        )
 
 def test_yahoo_provider_rejects_empty_history():
     with patch(
@@ -202,7 +184,11 @@ def test_yahoo_provider_rejects_empty_history():
             ValueError,
             match="returned no historical gold data",
         ):
-            provider.get_historical_data(request)
+            provider.get_historical_data(
+                GOLD_FUTURES,
+                request,
+            )
+
 
 def test_yahoo_provider_rejects_long_intraday_range():
     provider = YahooFinanceMarketDataProvider()
@@ -226,4 +212,7 @@ def test_yahoo_provider_rejects_long_intraday_range():
         ValueError,
         match="cannot exceed 60 days",
     ):
-        provider.get_historical_data(request)
+        provider.get_historical_data(
+            GOLD_FUTURES,
+            request,
+        )

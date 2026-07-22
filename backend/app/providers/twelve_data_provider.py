@@ -4,19 +4,17 @@ import httpx
 
 from app.core.config import settings
 from app.providers.base import MarketDataProvider
-from app.models.market_instrument import MarketInstrument
 from app.models.market_interval import MarketInterval
 from app.schemas.market import (
-    GoldPriceResponse,
     HistoricalMarketDataRequest,
     HistoricalMarketDataResponse,
     MarketCandle,
 )
+from app.instruments.definitions import GOLD_SPOT
+from app.models.instrument_definition import InstrumentDefinition
+from app.schemas.market import MarketPriceResponse
 
 class TwelveDataMarketDataProvider(MarketDataProvider):
-    """Retrieves XAU/USD spot gold data from Twelve Data."""
-
-    GOLD_SPOT_SYMBOL = MarketInstrument.GOLD_SPOT
 
     INTERVAL_MAPPING: dict[MarketInterval, str] = {
         MarketInterval.ONE_MINUTE: "1min",
@@ -53,11 +51,14 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
                 "Twelve Data API key is not configured"
             )
 
-    def get_gold_price(self) -> GoldPriceResponse:
+    def get_latest_price(
+        self,
+        instrument: InstrumentDefinition,
+    ) -> MarketPriceResponse:
         response = httpx.get(
             f"{self.base_url}/price",
             params={
-                "symbol": self.GOLD_SPOT_SYMBOL,
+                "symbol": instrument.provider_symbol,
                 "apikey": self.api_key,
             },
             timeout=self.timeout_seconds,
@@ -81,18 +82,18 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
                 "Twelve Data response did not contain a price"
             )
 
-        return GoldPriceResponse(
-            symbol=self.GOLD_SPOT_SYMBOL,
+        return MarketPriceResponse(
+            symbol=instrument.provider_symbol,
             price=round(float(price), 2),
-            currency="USD",
+            currency=instrument.instrument.quote_asset or "USD",
             timestamp=datetime.now(timezone.utc),
         )
     
     def get_historical_data(
         self,
+        instrument: InstrumentDefinition,
         request: HistoricalMarketDataRequest,
     ) -> HistoricalMarketDataResponse:
-        self._validate_historical_request(request)
 
         provider_interval = self._get_provider_interval(
             request.interval
@@ -101,7 +102,7 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
         response = httpx.get(
             f"{self.base_url}/time_series",
             params={
-                "symbol": MarketInstrument.GOLD_SPOT.value,
+                "symbol": instrument.provider_symbol,
                 "interval": provider_interval,
                 "start_date": request.start_time.isoformat(),
                 "end_date": request.end_time.isoformat(),
@@ -150,7 +151,7 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
 
             candles.append(
                 MarketCandle(
-                    symbol=MarketInstrument.GOLD_SPOT,
+                    symbol=instrument.provider_symbol,
                     interval=request.interval,
                     timestamp=timestamp,
                     open=float(item["open"]),
@@ -170,7 +171,7 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
         )
 
         return HistoricalMarketDataResponse(
-            symbol=MarketInstrument.GOLD_SPOT,
+            symbol=instrument.provider_symbol,
             interval=request.interval,
             currency="USD",
             candles=candles,
@@ -188,11 +189,5 @@ class TwelveDataMarketDataProvider(MarketDataProvider):
                 f"Twelve Data does not support interval: {interval}"
             ) from error
         
-    @staticmethod
-    def _validate_historical_request(
-        request: HistoricalMarketDataRequest,
-    ) -> None:
-        if request.symbol != MarketInstrument.GOLD_SPOT:
-            raise ValueError(
-                "Twelve Data provider only supports spot gold"
-            )
+    def get_gold_price(self) -> MarketPriceResponse:
+        return self.get_latest_price(GOLD_SPOT)

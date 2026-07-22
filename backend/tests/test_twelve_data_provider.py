@@ -4,12 +4,14 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from app.models.market_instrument import MarketInstrument
 from app.models.market_interval import MarketInterval
 from app.providers.twelve_data_provider import (
     TwelveDataMarketDataProvider,
 )
 from app.schemas.market import HistoricalMarketDataRequest
+from app.instruments.definitions import (
+    GOLD_SPOT,
+)
 
 def test_twelve_data_provider_returns_normalised_spot_price():
     mock_response = MagicMock()
@@ -122,11 +124,9 @@ def test_twelve_data_provider_propagates_http_error():
 
 def create_spot_historical_request(
     *,
-    symbol: MarketInstrument = MarketInstrument.GOLD_SPOT,
     interval: MarketInterval = MarketInterval.FIVE_MINUTES,
 ) -> HistoricalMarketDataRequest:
     return HistoricalMarketDataRequest(
-        symbol=symbol,
         interval=interval,
         start_time=datetime(
             2026,
@@ -185,9 +185,12 @@ def test_twelve_data_provider_returns_historical_spot_candles():
         )
 
         request = create_spot_historical_request()
-        result = provider.get_historical_data(request)
+        result = provider.get_historical_data(
+            GOLD_SPOT,
+            request,
+        )
 
-    assert result.symbol == MarketInstrument.GOLD_SPOT
+    assert result.symbol == GOLD_SPOT.provider_symbol
     assert result.interval == MarketInterval.FIVE_MINUTES
     assert result.currency == "USD"
     assert len(result.candles) == 2
@@ -220,22 +223,6 @@ def test_twelve_data_provider_returns_historical_spot_candles():
         timeout=10.0,
     )
 
-def test_twelve_data_provider_rejects_gold_futures_history():
-    provider = TwelveDataMarketDataProvider(
-        api_key="test-api-key",
-        base_url="https://test.twelvedata.com",
-    )
-
-    request = create_spot_historical_request(
-        symbol=MarketInstrument.GOLD_FUTURES
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="only supports spot gold",
-    ):
-        provider.get_historical_data(request)
-
 def test_twelve_data_historical_provider_raises_provider_error():
     mock_response = MagicMock()
     mock_response.raise_for_status.return_value = None
@@ -260,7 +247,10 @@ def test_twelve_data_historical_provider_raises_provider_error():
             ValueError,
             match="Invalid interval",
         ):
-            provider.get_historical_data(request)
+            provider.get_historical_data(
+                GOLD_SPOT,
+                request,
+            )
 
 def test_twelve_data_historical_provider_rejects_empty_values():
     mock_response = MagicMock()
@@ -286,4 +276,7 @@ def test_twelve_data_historical_provider_rejects_empty_values():
             ValueError,
             match="returned no historical spot data",
         ):
-            provider.get_historical_data(request)
+            provider.get_historical_data(
+                GOLD_SPOT,
+                request,
+            )

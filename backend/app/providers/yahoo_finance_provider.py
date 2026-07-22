@@ -4,19 +4,17 @@ import pandas as pd
 import yfinance as yf
 
 from app.providers.base import MarketDataProvider
-from app.models.market_instrument import MarketInstrument
 from app.schemas.market import (
-    GoldPriceResponse,
     HistoricalMarketDataRequest,
     HistoricalMarketDataResponse,
     MarketCandle,
 )
+from app.instruments.definitions import GOLD_FUTURES
+from app.models.instrument_definition import InstrumentDefinition
+from app.schemas.market import MarketPriceResponse
 from app.models.market_interval import MarketInterval
 
 class YahooFinanceMarketDataProvider(MarketDataProvider):
-    """Retrieves gold futures market data from Yahoo Finance."""
-
-    GOLD_TICKER = MarketInstrument.GOLD_FUTURES
 
     INTERVAL_MAPPING: dict[MarketInterval, str] = {
         MarketInterval.ONE_MINUTE: "1m",
@@ -27,8 +25,12 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
         MarketInterval.ONE_DAY: "1d",
     }
 
-    def get_gold_price(self) -> GoldPriceResponse:
-        ticker = yf.Ticker(self.GOLD_TICKER)
+    def get_latest_price(
+        self,
+        instrument: InstrumentDefinition,
+    ) -> MarketPriceResponse:
+        
+        ticker = yf.Ticker(instrument.provider_symbol)
 
         history = ticker.history(
             period="1d",
@@ -41,10 +43,10 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
         latest_row = history.iloc[-1]
         latest_timestamp = history.index[-1]
 
-        return GoldPriceResponse(
-            symbol=self.GOLD_TICKER,
+        return MarketPriceResponse(
+            symbol=instrument.provider_symbol,
             price=round(float(latest_row["Close"]), 2),
-            currency="USD",
+            currency=instrument.instrument.quote_asset or "USD",
             timestamp=latest_timestamp.astimezone(timezone.utc),
         )
     
@@ -59,16 +61,11 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
             raise ValueError(
                 f"Yahoo Finance does not support interval: {interval}"
             ) from error
-    
+        
     @staticmethod
-    def _validate_historical_request(
+    def _validate_historical_range(
         request: HistoricalMarketDataRequest,
     ) -> None:
-        if request.symbol != MarketInstrument.GOLD_FUTURES:
-            raise ValueError(
-                "Yahoo Finance provider only supports gold futures"
-            )
-
         intraday_intervals = {
             MarketInterval.ONE_MINUTE,
             MarketInterval.FIVE_MINUTES,
@@ -87,20 +84,21 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
         ):
             raise ValueError(
                 "Yahoo Finance intraday requests cannot exceed 60 days"
-            )
+            )    
     
     def get_historical_data(
-    self,
-    request: HistoricalMarketDataRequest,
+        self,
+        instrument: InstrumentDefinition,
+        request: HistoricalMarketDataRequest,
     ) -> HistoricalMarketDataResponse:
-        self._validate_historical_request(request)
+        self._validate_historical_range(request)
 
         provider_interval = self._get_provider_interval(
             request.interval
         )
 
         ticker = yf.Ticker(
-            MarketInstrument.GOLD_FUTURES
+            instrument.provider_symbol
         )
 
         history = ticker.history(
@@ -143,7 +141,7 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
 
             candles.append(
                 MarketCandle(
-                    symbol=MarketInstrument.GOLD_FUTURES,
+                    symbol=instrument.provider_symbol,
                     interval=request.interval,
                     timestamp=candle_timestamp,
                     open=float(row["Open"]),
@@ -160,8 +158,11 @@ class YahooFinanceMarketDataProvider(MarketDataProvider):
             )
 
         return HistoricalMarketDataResponse(
-            symbol=MarketInstrument.GOLD_FUTURES,
+            symbol=instrument.provider_symbol,
             interval=request.interval,
             currency="USD",
             candles=candles,
         )
+
+    def get_gold_price(self) -> MarketPriceResponse:
+        return self.get_latest_price(GOLD_FUTURES)

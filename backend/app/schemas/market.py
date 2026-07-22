@@ -1,12 +1,11 @@
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from app.models.market_instrument import MarketInstrument
 from app.models.market_interval import MarketInterval
 
 
-class GoldPriceResponse(BaseModel):
-    symbol: MarketInstrument
+class MarketPriceResponse(BaseModel):
+    symbol: str
     price: float
     currency: str
     timestamp: datetime
@@ -16,7 +15,7 @@ class MarketCandle(BaseModel):
         extra="forbid",
     )
 
-    symbol: MarketInstrument
+    symbol: str
     interval: MarketInterval
     timestamp: datetime
 
@@ -55,13 +54,12 @@ class MarketCandle(BaseModel):
         return self
 
 class HistoricalMarketDataResponse(BaseModel):
-    symbol: MarketInstrument
+    symbol: str
     interval: MarketInterval
     currency: str
     candles: list[MarketCandle]
 
 class HistoricalMarketDataRequest(BaseModel):
-    symbol: MarketInstrument
     interval: MarketInterval
     start_time: datetime
     end_time: datetime
@@ -86,3 +84,5 @@ class HistoricalMarketDataRequest(BaseModel):
             )
 
         return self
+    
+GoldPriceResponse = MarketPriceResponse
